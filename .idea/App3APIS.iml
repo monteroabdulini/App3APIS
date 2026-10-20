@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/App3API/.gradle" />
+      <excludeFolder url="file://$MODULE_DIR$/App3API/.idea/caches" />
+      <excludeFolder url="file://$MODULE_DIR$/App3API/app/build" />
+      <excludeFolder url="file://$MODULE_DIR$/App3API/build" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

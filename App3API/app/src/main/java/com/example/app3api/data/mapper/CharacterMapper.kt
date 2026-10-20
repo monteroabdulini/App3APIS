@@ -1,5 +1,7 @@
 package com.example.app3api.data.mapper
 
+import com.example.app3api.data.local.CharacterCacheEntity
+import com.example.app3api.data.local.FavoriteEntity
 import com.example.app3api.data.model.DemonSlayerCharacterDto
 import com.example.app3api.data.model.DragonBallCharacterDto
 import com.example.app3api.data.model.RickAndMortyCharacterDto
@@ -8,7 +10,7 @@ import com.example.app3api.domain.CharacterModel
 
 /**
  * Mapper único para transformar los DTOs de las tres APIs
- * a un modelo de dominio unificado (CharacterModel).
+ * y las Entidades de Room a/desde el modelo de dominio unificado (CharacterModel).
  */
 object CharacterMapper {
 
@@ -75,6 +77,57 @@ object CharacterMapper {
             statusOrRace = raceAndAff,
             description = desc,
             sourceApi = ApiSource.DRAGON_BALL
+        )
+    }
+
+    // Conversiones con Room Entities
+    fun FavoriteEntity.toCharacterModel(): CharacterModel {
+        val apiSourceEnum = ApiSource.entries.find { it.name == sourceApi } ?: ApiSource.DEMON_SLAYER
+        return CharacterModel(
+            id = id,
+            name = name,
+            imageUrl = imageUrl,
+            gender = gender,
+            statusOrRace = statusOrRace,
+            description = description,
+            sourceApi = apiSourceEnum
+        )
+    }
+
+    fun CharacterModel.toFavoriteEntity(): FavoriteEntity {
+        return FavoriteEntity(
+            id = id,
+            name = name,
+            imageUrl = imageUrl,
+            gender = gender,
+            statusOrRace = statusOrRace,
+            description = description,
+            sourceApi = sourceApi.name
+        )
+    }
+
+    fun CharacterCacheEntity.toCharacterModel(): CharacterModel {
+        val apiSourceEnum = ApiSource.entries.find { it.name == sourceApi } ?: ApiSource.DEMON_SLAYER
+        return CharacterModel(
+            id = id,
+            name = name,
+            imageUrl = imageUrl,
+            gender = gender,
+            statusOrRace = statusOrRace,
+            description = description,
+            sourceApi = apiSourceEnum
+        )
+    }
+
+    fun CharacterModel.toCharacterCacheEntity(): CharacterCacheEntity {
+        return CharacterCacheEntity(
+            id = id,
+            name = name,
+            imageUrl = imageUrl,
+            gender = gender,
+            statusOrRace = statusOrRace,
+            description = description,
+            sourceApi = sourceApi.name
         )
     }
 }

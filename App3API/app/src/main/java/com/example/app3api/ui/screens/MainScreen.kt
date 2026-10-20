@@ -1,5 +1,7 @@
 package com.example.app3api.ui.screens
 
+import android.app.Application
+import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -38,6 +40,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -75,6 +79,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,10 +94,14 @@ import com.example.app3api.ui.viewmodel.UiState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    viewModel: MainViewModel = viewModel()
+    context: Context = LocalContext.current,
+    viewModel: MainViewModel = viewModel(
+        factory = MainViewModel.Factory(context.applicationContext as Application)
+    )
 ) {
     val selectedApi by viewModel.selectedApi.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val showOnlyFavorites by viewModel.showOnlyFavorites.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val selectedCharacter by viewModel.selectedCharacter.collectAsState()
 
@@ -104,11 +113,18 @@ fun MainScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "Multi-API Characters",
+                            text = if (showOnlyFavorites) "Favoritos (${selectedApi.title})" else "Multi-API Characters",
                             fontWeight = FontWeight.Bold
                         )
                     },
                     actions = {
+                        IconButton(onClick = { viewModel.toggleShowOnlyFavorites() }) {
+                            Icon(
+                                imageVector = if (showOnlyFavorites) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Favoritos",
+                                tint = if (showOnlyFavorites) Color(0xFFE53935) else MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                         IconButton(onClick = { isSearchVisible = !isSearchVisible }) {
                             Icon(
                                 imageVector = if (isSearchVisible) Icons.Default.Clear else Icons.Default.Search,
@@ -205,11 +221,16 @@ fun MainScreen(
                     }
                     is UiState.Success -> {
                         if (state.characters.isEmpty()) {
-                            EmptyView(query = searchQuery)
+                            EmptyView(
+                                query = searchQuery,
+                                isFavoritesMode = showOnlyFavorites
+                            )
                         } else {
                             CharacterGrid(
                                 characters = state.characters,
-                                onCharacterClick = { viewModel.selectCharacter(it) }
+                                favoriteIds = state.favoriteIds,
+                                onCharacterClick = { viewModel.selectCharacter(it) },
+                                onFavoriteClick = { viewModel.toggleFavorite(it) }
                             )
                         }
                     }
@@ -224,8 +245,11 @@ fun MainScreen(
 
             // Character Detail Modal Bottom Sheet
             selectedCharacter?.let { character ->
+                val favoriteIds = (uiState as? UiState.Success)?.favoriteIds ?: emptySet()
                 CharacterDetailBottomSheet(
                     character = character,
+                    isFavorite = character.id in favoriteIds,
+                    onFavoriteToggle = { viewModel.toggleFavorite(it) },
                     onDismiss = { viewModel.selectCharacter(null) }
                 )
             }
@@ -236,7 +260,9 @@ fun MainScreen(
 @Composable
 fun CharacterGrid(
     characters: List<CharacterModel>,
-    onCharacterClick: (CharacterModel) -> Unit
+    favoriteIds: Set<String>,
+    onCharacterClick: (CharacterModel) -> Unit,
+    onFavoriteClick: (CharacterModel) -> Unit
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 160.dp),
@@ -248,7 +274,9 @@ fun CharacterGrid(
         itemsIndexed(characters, key = { _, item -> item.id }) { _, character ->
             AnimatedCharacterCard(
                 character = character,
-                onClick = { onCharacterClick(character) }
+                isFavorite = character.id in favoriteIds,
+                onClick = { onCharacterClick(character) },
+                onFavoriteClick = { onFavoriteClick(character) }
             )
         }
     }
@@ -257,9 +285,10 @@ fun CharacterGrid(
 @Composable
 fun AnimatedCharacterCard(
     character: CharacterModel,
-    onClick: () -> Unit
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    onFavoriteClick: () -> Unit
 ) {
-    // Animación de escala al presionar la tarjeta
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -333,6 +362,20 @@ fun AnimatedCharacterCard(
                             )
                         )
                 )
+
+                // Corazón de Favorito en esquina superior izquierda
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(2.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Quitar de favoritos" else "Agregar a favoritos",
+                        tint = if (isFavorite) Color(0xFFE53935) else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                }
 
                 // Api Tag Badge
                 ApiBadge(
@@ -452,7 +495,10 @@ fun LoadingView() {
 }
 
 @Composable
-fun EmptyView(query: String = "") {
+fun EmptyView(
+    query: String = "",
+    isFavoritesMode: Boolean = false
+) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -462,14 +508,18 @@ fun EmptyView(query: String = "") {
             modifier = Modifier.padding(24.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Search,
+                imageVector = if (isFavoritesMode) Icons.Default.FavoriteBorder else Icons.Default.Search,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.size(64.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = if (query.isBlank()) "No se encontraron personajes." else "Sin resultados para \"$query\"",
+                text = when {
+                    isFavoritesMode -> "Aún no tienes favoritos en esta categoría."
+                    query.isBlank() -> "No se encontraron personajes."
+                    else -> "Sin resultados para \"$query\""
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -526,6 +576,8 @@ fun ErrorView(
 @Composable
 fun CharacterDetailBottomSheet(
     character: CharacterModel,
+    isFavorite: Boolean,
+    onFavoriteToggle: (CharacterModel) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -563,7 +615,7 @@ fun CharacterDetailBottomSheet(
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     ApiBadge(source = character.sourceApi)
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
@@ -581,6 +633,17 @@ fun CharacterDetailBottomSheet(
                         text = "Género: ${character.gender}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                IconButton(
+                    onClick = { onFavoriteToggle(character) },
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Quitar de favoritos" else "Agregar a favoritos",
+                        tint = if (isFavorite) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
